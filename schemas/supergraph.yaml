@@ -1,0 +1,11 @@
+subgraphs:
+  one:
+    routing_url: http://one/graphql
+    schema:
+      graphref: test-graph-dynamic-composition@current
+      subgraph: one
+  two:
+    routing_url: http://two/graphql
+    schema:
+      graphref: test-graph-dynamic-composition@current
+      subgraph: two
