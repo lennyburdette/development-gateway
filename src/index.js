@@ -13,8 +13,8 @@ app.post(
   express.urlencoded({ extended: true }),
 
   /**
-   * Given new subgraph SDLs, compose a new supergraph, spin up a gateway, and
-   * cache it for later use.
+   * Given new subgraph SDLs, compose a new supergraph and cache it for later
+   * use.
    *
    * Responds with the HTTP header needed to access this gateway.
    *
@@ -22,14 +22,23 @@ app.post(
    * @param {import('express').Response} res
    */
   async (req, res) => {
-    const id = await supergraphCache.set(req.body.subgraphs);
-    res.json({ "x-schema": id });
+    try {
+      const id = await supergraphCache.set(req.body.subgraphs);
+      res.json({ "x-schema": id });
+    } catch (e) {
+      res.send(e.message.split("\n").slice(1).join("\n"));
+    }
   }
 );
 
 // Expects APOLLO_KEY to be set.
-const defaultSupergraph = await compose([]);
-const defaultGateway = await makeGateway({ supergraphSdl: defaultSupergraph });
+const result = await compose([]);
+if ("error" in result) {
+  throw result.error;
+}
+const defaultGateway = await makeGateway({
+  supergraphSdl: result.supergraphSdl,
+});
 
 app.use(async (req, res, next) => {
   if (req.header("x-schema")) {

@@ -18,13 +18,19 @@ export class SupergraphCache {
    * @param {{ name: string; sdl: string; }[]} params
    */
   async set(params) {
-    const supergraphSdl = await compose(params);
+    const result = await compose(params);
+
+    if ("error" in result) {
+      throw new Error(result.error.message);
+    }
 
     const names = params.map((p) => p.name).join(":");
-    const hash = createHash("sha256").update(supergraphSdl).digest("hex");
+    const hash = createHash("sha256")
+      .update(result.supergraphSdl)
+      .digest("hex");
     const id = `${names}:${hash}`;
 
-    await this.#redis.set(id, supergraphSdl);
+    await this.#redis.set(id, result.supergraphSdl);
     return id;
   }
 
@@ -45,7 +51,7 @@ export class SupergraphCache {
  * schemas.
  *
  * @param {{ name: string; sdl: string; }[]} subgraphs
- * @returns {Promise<string>}
+ * @returns {Promise<{ supergraphSdl: string } | { error: Error }>}
  */
 export async function compose(subgraphs) {
   console.time("=== Composing complete");
@@ -93,11 +99,32 @@ export async function compose(subgraphs) {
     path,
   ]);
 
-  const supergraphSdl = (await proc).stdout;
+  try {
+    const { stdout: supergraphSdl } = await proc;
 
-  cleanups.forEach((fn) => fn());
+    cleanups.forEach((fn) => fn());
 
-  console.timeEnd("=== Composing complete");
+    console.timeEnd("=== Composing complete");
 
-  return supergraphSdl;
+    return { supergraphSdl };
+  } catch (e) {
+    console.log("ERROR!");
+    console.timeEnd("=== Composing complete");
+    return { error: e };
+  }
+}
+
+/**
+ * @param {string} stderr
+ */
+function findRoverError(stderr) {
+  try {
+    const json = JSON.parse(stderr);
+    if (json.stderr) {
+      return json.stderr;
+    }
+    return JSON.stringify(json);
+  } catch (e) {
+    return { message: stderr };
+  }
 }

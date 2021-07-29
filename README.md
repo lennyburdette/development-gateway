@@ -43,3 +43,10 @@ Federation and Apollo Studio's schema registry in production.
 1. Paste what's on your clipboard in the "HTTP Headers" section of the
    playground.
 1. Observe that the schema now has three root fields.
+1. Bonus: simulate a composition error:
+
+   ```
+   curl http://localhost:4000/compose \
+     --data-urlencode "subgraphs[0][name]=one" \
+     --data-urlencode "subgraphs[0][sdl]@schemas/one-broken.graphql"
+   ```
