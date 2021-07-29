@@ -4,37 +4,39 @@ import { load, dump } from "js-yaml";
 import { merge } from "lodash-es";
 import { file as tmpFile } from "tmp-promise";
 import execa from "execa";
-import LRUCache from "lru-cache";
 import { createHash } from "crypto";
 import { makeGateway } from "./gateway.js";
+import Redis from "ioredis";
 
 const require = createRequire(import.meta.url);
 const rover = require.resolve("@apollo/rover/run.js");
 
-export class Cache {
-  #cache = new LRUCache();
+export class SupergraphCache {
+  #redis = new Redis(process.env.REDIS);
 
   /**
    * @param {{ name: string; sdl: string; }[]} params
    */
   async set(params) {
     const supergraphSdl = await compose(params);
-    const names = params.map((p) => p.name).join(":");
 
+    const names = params.map((p) => p.name).join(":");
     const hash = createHash("sha256").update(supergraphSdl).digest("hex");
     const id = `${names}:${hash}`;
 
-    const gateway = await makeGateway({ supergraphSdl });
-
-    this.#cache.set(id, { supergraphSdl, gateway });
+    await this.#redis.set(id, supergraphSdl);
     return id;
   }
 
   /**
    * @param {any} id
    */
-  get(id) {
-    return this.#cache.get(id) ?? {};
+  async get(id) {
+    const supergraphSdl = await this.#redis.get(id);
+    if (!supergraphSdl) {
+      return {};
+    }
+    return { supergraphSdl, gateway: await makeGateway({ supergraphSdl }) };
   }
 }
 
@@ -45,7 +47,9 @@ export class Cache {
  * @param {{ name: string; sdl: string; }[]} subgraphs
  * @returns {Promise<string>}
  */
-async function compose(subgraphs) {
+export async function compose(subgraphs) {
+  console.time("=== Composing complete");
+  console.log(`=== Composing with ${subgraphs.length} new subgraph(s)...`);
   const cleanups = [];
 
   let config = load(await readFile("schemas/supergraph.yaml", "utf-8"));
@@ -92,6 +96,8 @@ async function compose(subgraphs) {
   const supergraphSdl = (await proc).stdout;
 
   cleanups.forEach((fn) => fn());
+
+  console.timeEnd("=== Composing complete");
 
   return supergraphSdl;
 }

@@ -1,22 +1,26 @@
 import { ApolloServer } from "apollo-server-express";
 import { ApolloGateway } from "@apollo/gateway";
-import {
-  ApolloServerPluginLandingPageGraphQLPlayground,
-  ApolloServerPluginUsageReportingDisabled,
-} from "apollo-server-core";
+import { ApolloServerPluginLandingPageGraphQLPlayground } from "apollo-server-core";
 
 /**
  * @param {import("@apollo/gateway").GatewayConfig | undefined} [gatewayConfig]
  */
 export async function makeGateway(gatewayConfig) {
-  const gateway = new ApolloGateway(gatewayConfig);
+  console.time("=== Gateway created");
+  console.log("=== Creating new gateway...");
+
+  const gateway = new ApolloGateway({
+    debug: true,
+    ...gatewayConfig,
+  });
   const server = new ApolloServer({
     gateway,
-    plugins: [
-      ApolloServerPluginLandingPageGraphQLPlayground(),
-      ApolloServerPluginUsageReportingDisabled(),
-    ],
+    plugins: [ApolloServerPluginLandingPageGraphQLPlayground()],
   });
   await server.start();
-  return server.getMiddleware();
+  const middleware = server.getMiddleware();
+
+  console.timeEnd("=== Gateway created");
+
+  return middleware;
 }

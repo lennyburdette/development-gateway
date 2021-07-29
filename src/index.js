@@ -2,11 +2,11 @@ import { config } from "dotenv";
 config();
 
 import express from "express";
-import { Cache } from "./supergraph-cache.js";
+import { SupergraphCache, compose } from "./supergraph-cache.js";
 import { makeGateway } from "./gateway.js";
 
 const app = express();
-const supergraphCache = new Cache();
+const supergraphCache = new SupergraphCache();
 
 app.post(
   "/compose",
@@ -28,11 +28,12 @@ app.post(
 );
 
 // Expects APOLLO_KEY to be set.
-const defaultGateway = await makeGateway();
+const defaultSupergraph = await compose([]);
+const defaultGateway = await makeGateway({ supergraphSdl: defaultSupergraph });
 
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   if (req.header("x-schema")) {
-    const { gateway } = supergraphCache.get(req.header("x-schema"));
+    const { gateway } = await supergraphCache.get(req.header("x-schema"));
 
     if (!gateway) {
       res.json(missingSupergraphResponse(req.header("x-schema")));
